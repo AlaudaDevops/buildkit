@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# Alauda fork release config for `buildctl`.
+# Triggered by reusable-release-alauda.yaml on `v*-alauda-*` tags.
+
+version: 2
+
+project_name: buildctl-alauda
+
+# NOTE: deliberately no `before.hooks: go mod tidy`. buildkit ships a vendored
+# module tree and the upstream build relies on `-mod=vendor`. Running tidy
+# inside CI would mutate go.mod / go.sum and break vendor consistency.
+
+builds:
+  - id: buildctl
+    env:
+      - CGO_ENABLED=0
+      - GOFLAGS=-mod=vendor   # reuse the vendor/ tree shipped in the fork
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    main: ./cmd/buildctl
+    binary: buildctl
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X github.com/moby/buildkit/version.Version={{.Env.GENERATED_VERSION}}
+      - -X github.com/moby/buildkit/version.Revision={{.FullCommit}}
+      - -X github.com/moby/buildkit/version.Package=github.com/moby/buildkit
+
+source:
+  enabled: true
+
+archives:
+  - id: archive
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ .Tag }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+
+release:
+  name_template: "{{.Tag}}"
+  footer: |
+    ### Alauda Derived buildctl Binary
+
+    This release is built from an Alauda fork branch based on upstream
+    moby/buildkit. It is intended for internal Alauda product consumption
+    only.
